@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>藍波健康 - 同仁專屬報價系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f1f5f9; -webkit-tap-highlight-color: transparent; }
+        .glass-morphism { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .card-animate { transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .card-animate:active { transform: scale(0.97); }
+        .reward-glow { box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); }
+        .bottom-drawer-enter-active, .bottom-drawer-leave-active { transition: transform 0.4s cubic-bezier(0.33, 1, 0.68, 1); }
+        .bottom-drawer-enter-from, .bottom-drawer-leave-to { transform: translateY(100%); }
+        [v-cloak] { display: none; }
+    </style>
+</head>
+<body>
+    <div id="app" v-cloak>
+        <div v-if="!isAuthenticated" class="fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-8">
+            <div class="w-full max-w-sm bg-white rounded-[2.5rem] p-10 shadow-2xl text-center">
+                <div class="w-20 h-20 bg-indigo-600 text-white rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-xl shadow-indigo-200 rotate-6">
+                    <i class="fa-solid fa-key text-3xl"></i>
+                </div>
+                <h1 class="text-2xl font-black text-slate-800 mb-2">藍波健康體能</h1>
+                <p class="text-slate-400 text-sm mb-10 tracking-widest uppercase">Employee Portal</p>
+                <div class="space-y-4">
+                    <input v-model="passwordInput" @keyup.enter="checkPassword" type="password" placeholder="請輸入存取密碼" 
+                           class="w-full px-6 py-5 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 text-center text-lg">
+                    <button @click="checkPassword" class="w-full bg-slate-900 text-white font-bold py-5 rounded-2xl shadow-xl active:scale-95 transition-all">登入系統</button>
+                    <p v-if="loginError" class="text-red-500 text-xs font-bold mt-4 animate-bounce">密碼錯誤，請重新確認</p>
+                </div>
+            </div>
+        </div>
+
+        <div v-else class="max-w-2xl mx-auto min-h-screen pb-32">
+            <div class="sticky top-0 z-40 glass-morphism border-b border-slate-200">
+                <div class="p-5">
+                    <div class="flex justify-between items-center mb-5">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center">
+                                <i class="fa-solid fa-p text-white text-xs"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-black text-indigo-600 uppercase tracking-tighter">Current Database</p>
+                                <p class="text-sm font-black text-slate-800">內部報價系統 V4.1</p>
+                            </div>
+                        </div>
+                        <button @click="logout" class="w-10 h-10 rounded-full border border-slate-100 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"><i class="fa-solid fa-power-off text-sm"></i></button>
+                    </div>
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input v-model="searchQuery" type="text" placeholder="搜尋全品項產品..." 
+                               class="w-full pl-14 pr-6 py-4 bg-white border border-slate-200 rounded-[1.25rem] shadow-sm focus:ring-2 focus:ring-indigo-500 transition-all">
+                    </div>
+                </div>
+                <div class="flex overflow-x-auto px-5 pb-4 space-x-3 no-scrollbar">
+                    <button v-for="cat in allCategories" @click="currentCategory = cat"
+                            :class="['whitespace-nowrap px-6 py-2.5 rounded-2xl text-xs font-black transition-all', 
+                                     currentCategory === cat ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-white text-slate-400 border border-slate-100']">
+                        {{ cat }}
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-5 space-y-5">
+                <div v-for="item in filteredProducts" :key="item.name + item.spec" 
+                     @click="openDetail(item)"
+                     class="card-animate bg-white rounded-[2.5rem] p-6 shadow-sm border border-white hover:shadow-xl cursor-pointer relative overflow-hidden group">
+                    
+                    <div class="absolute top-0 right-0 bg-emerald-500 text-white px-4 py-2 rounded-bl-3xl text-[10px] font-black reward-glow z-10">
+                        獎金 +${{ Math.round(item.sellPrice * 0.1) }}
+                    </div>
+
+                    <div class="flex gap-4 mb-4">
+                        <div class="w-24 h-24 shrink-0 bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 flex items-center justify-center relative">
+                            <a v-if="item.url" :href="item.url" target="_blank" @click.stop class="absolute inset-0 z-10 flex items-center justify-center">
+                                <img v-if="item.img" :src="item.img" class="w-full h-full object-cover mix-blend-multiply" alt="product image">
+                                <i v-else class="fa-solid fa-pills text-3xl text-slate-200"></i>
+                            </a>
+                            <template v-else>
+                                <img v-if="item.img" :src="item.img" class="w-full h-full object-cover mix-blend-multiply" alt="product image">
+                                <i v-else class="fa-solid fa-pills text-3xl text-slate-200"></i>
+                            </template>
+                            <div v-if="item.url" class="absolute bottom-0 right-0 w-6 h-6 bg-indigo-600 rounded-tl-xl rounded-br-xl flex items-center justify-center z-20">
+                                <i class="fa-solid fa-arrow-up-right-from-square text-white text-[8px]"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="flex-1 pt-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span v-if="item.veg" class="text-[9px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md font-black uppercase">🌿 {{ item.veg }}</span>
+                                <span class="text-[9px] bg-slate-50 text-slate-400 px-2 py-1 rounded-md font-bold">{{ item.spec }}</span>
+                            </div>
+                            <h3 class="text-xl font-black text-slate-900 group-hover:text-indigo-600 transition-colors leading-tight">{{ item.name }}</h3>
+                        </div>
+                    </div>
+
+                    <p class="text-sm text-slate-400 line-clamp-1 mb-6">{{ item.desc }}</p>
+
+                    <div class="flex items-center justify-between">
+                        <div class="space-y-1">
+                            <span class="text-[10px] text-slate-300 line-through tracking-wider block">建議價 ${{ item.listPrice }}</span>
+                            <div class="flex items-baseline gap-1">
+                                <span class="text-xs font-bold text-slate-400">末端</span>
+                                <span class="text-xl font-black text-slate-800">${{ item.sellPrice }}</span>
+                            </div>
+                        </div>
+                        <div class="bg-indigo-50 px-5 py-2.5 rounded-2xl text-right">
+                            <p class="text-[9px] font-black text-indigo-500 uppercase tracking-widest">Staff</p>
+                            <p class="text-2xl font-black text-indigo-700 tracking-tighter">${{ item.staffPrice }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fixed bottom-8 left-1/2 -translate-x-1/2 w-[90%] max-w-md z-40">
+                <button @click="showNotice = true" class="w-full bg-slate-900 text-white py-5 rounded-[2rem] shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-all">
+                    <i class="fa-solid fa-circle-info text-indigo-400"></i>
+                    <span class="text-sm font-black tracking-widest">查閱員工購買與獎勵須知</span>
+                </button>
+            </div>
+
+            <transition name="bottom-drawer">
+                <div v-if="selectedItem" class="fixed inset-0 z-50 flex items-end">
+                    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="selectedItem = null"></div>
+                    <div class="relative bg-white w-full max-w-2xl mx-auto rounded-t-[3.5rem] shadow-2xl flex flex-col max-h-[90vh]">
+                        <div class="w-16 h-1.5 bg-slate-100 rounded-full mx-auto my-5"></div>
+                        <div class="px-8 pb-10 pt-2 overflow-y-auto no-scrollbar">
+                            
+                            <div class="w-full h-48 bg-slate-50 rounded-3xl mb-6 flex items-center justify-center overflow-hidden border border-slate-100 relative cursor-pointer"
+                                 @click="selectedItem.url && window.open(selectedItem.url, '_blank')">
+                                <img v-if="selectedItem.img" :src="selectedItem.img" class="w-full h-full object-contain mix-blend-multiply p-4" alt="product image">
+                                <i v-else class="fa-solid fa-camera text-4xl text-slate-200"></i>
+                                <div class="absolute top-4 left-4 bg-white/80 backdrop-blur px-3 py-1 rounded-full text-xs font-black text-indigo-600 shadow-sm">{{ selectedItem.cat }}</div>
+                                <div v-if="selectedItem.url" class="absolute bottom-4 right-4 bg-indigo-600 text-white px-3 py-1.5 rounded-full text-[10px] font-black flex items-center gap-1.5 shadow-lg">
+                                    <i class="fa-solid fa-arrow-up-right-from-square text-[8px]"></i> 查看官網
+                                </div>
+                            </div>
+
+                            <div class="flex justify-between items-start mb-8">
+                                <div>
+                                    <h2 class="text-3xl font-black text-slate-900 mb-2">{{ selectedItem.name }}</h2>
+                                    <p class="text-sm font-bold text-slate-400">{{ selectedItem.spec }}</p>
+                                </div>
+                                <button @click="selectedItem = null" class="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-400"><i class="fa-solid fa-xmark text-xl"></i></button>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4 mb-10">
+                                <div class="bg-emerald-50 rounded-3xl p-6 border border-emerald-100">
+                                    <p class="text-[10px] font-black text-emerald-600 uppercase mb-1">您的銷售獎金</p>
+                                    <p class="text-2xl font-black text-emerald-700">+${{ Math.round(selectedItem.sellPrice * 0.1) }}</p>
+                                </div>
+                                <div class="bg-slate-900 rounded-3xl p-6 shadow-lg shadow-slate-200">
+                                    <p class="text-[10px] font-black text-slate-400 uppercase mb-1">同仁優惠價</p>
+                                    <p class="text-2xl font-black text-white">${{ selectedItem.staffPrice }}</p>
+                                </div>
+                            </div>
+
+                            <div class="space-y-8">
+                                <section>
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <div class="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center text-xs"><i class="fa-solid fa-leaf"></i></div>
+                                        <h4 class="font-black text-slate-800">核心成分與特色</h4>
+                                    </div>
+                                    <p class="text-slate-500 leading-relaxed font-medium pl-11">{{ selectedItem.longDesc || selectedItem.desc }}</p>
+                                </section>
+                                
+                                <section v-if="selectedItem.usage">
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <div class="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center text-xs"><i class="fa-solid fa-clock"></i></div>
+                                        <h4 class="font-black text-slate-800">建議使用方式</h4>
+                                    </div>
+                                    <p class="text-slate-600 font-bold bg-slate-50 p-5 rounded-2xl border border-slate-100 ml-11">{{ selectedItem.usage }}</p>
+                                </section>
+                            </div>
+                        </div>
+                        <div class="p-8 pt-0 flex gap-3">
+                            <a v-if="selectedItem.url" :href="selectedItem.url" target="_blank" class="w-14 h-14 shrink-0 bg-indigo-100 text-indigo-600 rounded-[1.5rem] flex items-center justify-center active:scale-95 transition-all">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                            </a>
+                            <button @click="copyInfo(selectedItem)" class="flex-1 bg-slate-900 text-white font-black py-5 rounded-[1.5rem] shadow-xl active:scale-95 transition-all">複製資訊給客戶</button>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+
+            <transition name="bottom-drawer">
+                <div v-if="showNotice" class="fixed inset-0 z-50 flex items-end">
+                    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showNotice = false"></div>
+                    <div class="relative bg-white w-full max-w-2xl mx-auto rounded-t-[3.5rem] shadow-2xl p-10">
+                        <div class="w-16 h-1.5 bg-slate-100 rounded-full mx-auto mb-8"></div>
+                        <h2 class="text-2xl font-black text-slate-900 mb-8 flex items-center gap-3">
+                            <i class="fa-solid fa-circle-exclamation text-indigo-600"></i> 員工購買與銷售須知
+                        </h2>
+                        <div class="space-y-6 mb-10">
+                            <div class="flex gap-4">
+                                <div class="text-indigo-600 font-black text-xl">01</div>
+                                <div>
+                                    <p class="font-black text-slate-800 mb-1">銷售獎勵 (10%)</p>
+                                    <p class="text-sm text-slate-500 leading-relaxed">員工若有對外銷售額，每件商品可抽取該筆訂單 **末端售價之 10%** 作為個人獎金。</p>
+                                </div>
+                            </div>
+                            <div class="flex gap-4">
+                                <div class="text-indigo-600 font-black text-xl">02</div>
+                                <div>
+                                    <p class="font-black text-slate-800 mb-1">員工優惠價 (5折)</p>
+                                    <p class="text-sm text-slate-500 leading-relaxed">內部同仁購買均以 **建議售價之 5 折** 計算（即本系統藍色標記價格）。</p>
+                                </div>
+                            </div>
+                            <div class="flex gap-4">
+                                <div class="text-indigo-600 font-black text-xl">03</div>
+                                <div>
+                                    <p class="font-black text-slate-800 mb-1">購買限制</p>
+                                    <p class="text-sm text-slate-500 leading-relaxed">為保障公平，每位員工每月限購 **2 瓶** 同品項商品。</p>
+                                </div>
+                            </div>
+                        </div>
+                        <button @click="showNotice = false" class="w-full bg-indigo-600 text-white font-black py-5 rounded-2xl shadow-lg shadow-indigo-100">我已閱讀並理解</button>
+                    </div>
+                </div>
+            </transition>
+
+            <div v-if="showToast" class="fixed top-10 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-8 py-4 rounded-2xl font-black shadow-2xl flex items-center gap-3 animate-bounce">
+                <i class="fa-solid fa-circle-check text-emerald-400"></i> 已複製資訊，可直接貼給客戶
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        createApp({
+            data() {
+                return {
+                    isAuthenticated: false, passwordInput: '', loginError: false, correctPassword: '888',
+                    searchQuery: '', currentCategory: '全部產品', showToast: false, selectedItem: null, showNotice: false,
+                    allCategories: ['全部產品', '骨骼行動力', '女性保健', '男性活力', '腸胃代謝', '護眼腦力', '免疫體質', '外用日常'],
+                    products: [
+                        { cat: '骨骼行動力', name: '鈣補力', spec: '60粒', veg: '', img: 'https://www.ijoy.com.tw/images/VCA-2024.jpg', url: 'https://www.ijoy.com.tw/P-VCA.htm', desc: '胺基酸螯合鈣333mg + D3 + K2，補鈣鎖鈣三效合一', longDesc: '提供極高吸收率的胺基酸螯合鈣，並結合 D3 與 K2 確保鈣質精準沉積於骨骼。', usage: '每日 2 粒，建議飯後或睡前食用。', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '骨骼行動力', name: 'CPP鈣鎂', spec: '60粒', veg: '奶素', img: 'https://www.ijoy.com.tw/images/CCA-2024.jpg', url: 'https://www.ijoy.com.tw/P-CCA.htm', desc: '愛爾蘭紅藻鈣 + 70種礦物質 + CPP + D3', longDesc: '純植物來源紅藻鈣，含 70 種微量礦物質，CPP 因子與 D3 共同促進鈣質吸收。', usage: '每日 1-2 粒。', listPrice: 1280, sellPrice: 900, staffPrice: 640 },
+                        { cat: '骨骼行動力', name: '二型膠原蛋白', spec: '60粒', veg: '', img: 'https://www.ijoy.com.tw/images/KLA-NEW-2024.jpg', url: 'https://www.ijoy.com.tw/P-KLA.htm', desc: '葡萄糖胺/軟骨素/玻尿酸 + MSM + 魚骨鈣', longDesc: '專為關鍵活動設計，高純度二型膠原與玻尿酸協同作用。', usage: '每日 2 粒。', listPrice: 1980, sellPrice: 1200, staffPrice: 990 },
+                        { cat: '骨骼行動力', name: '速關健', spec: '60粒', veg: '全素', img: 'https://www.ijoy.com.tw/images/AKC-2024.jpg', url: 'https://www.ijoy.com.tw/P-AKC.html', desc: '德國植物配方，乳木果油 + 椰子油(MCT) + D3 + E', listPrice: 2680, sellPrice: 1800, staffPrice: 1340 },
+                        { cat: '骨骼行動力', name: '維生素D3滴液', spec: '15ml', veg: '全素', img: 'https://www.ijoy.com.tw/images/VVD-2024.jpg', url: 'https://www.ijoy.com.tw/P-VVD.htm', desc: '羊毛脂萃取D3 + MCT椰子油，促進鈣吸收', usage: '每日 1 滴。', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '骨骼行動力', name: '水解膠原蛋白', spec: '200g', veg: '', img: 'https://www.ijoy.com.tw/images/LRS-2024.jpg', url: 'https://www.ijoy.com.tw/P-LRS.htm', desc: '法國Rousselot小分子胜肽，100%無添加', listPrice: 2680, sellPrice: 1800, staffPrice: 1340 },
+
+                        { cat: '女性保健', name: '芙蕾蒙', spec: '60粒', veg: '', img: 'https://www.ijoy.com.tw/images/VFO-2024.jpg', url: 'https://www.ijoy.com.tw/P-VFO.htm', desc: '大豆異黃酮+DHEA+月見草油+蔓越莓+聖潔莓', longDesc: '全方位女性生理平衡配方。', usage: '每日 1 粒。', listPrice: 1980, sellPrice: 1200, staffPrice: 990 },
+                        { cat: '女性保健', name: '洛蔓益生菌', spec: '30包', veg: '奶素', img: 'https://www.ijoy.com.tw/images/BLP-NEW-2024.jpg', url: 'https://www.ijoy.com.tw/P-BLP.htm', desc: '6株專利私密益生菌+蔓越莓+洛神花+甘露糖', usage: '每日 1-2 包。', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '女性保健', name: '速鐵多', spec: '50粒', veg: '全素', img: 'https://www.ijoy.com.tw/images/VFE-2024.jpg', url: 'https://www.ijoy.com.tw/P-VFE.htm', desc: '專利螯合鐵+葉酸+B12+C，補鐵紅潤好氣色', usage: '每日 1 粒。', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '女性保健', name: '法國膠原蛋白', spec: '30包', veg: '', img: 'https://www.ijoy.com.tw/images/DNC-new.jpg', url: 'https://www.ijoy.com.tw/P-DNC.htm', desc: '5000mg胜肽+玻尿酸+蛋白聚醣+卡姆果C', listPrice: 2980, sellPrice: 2000, staffPrice: 1490 },
+                        { cat: '女性保健', name: '麗康蜂皇乳補精', spec: '10瓶', veg: '', img: 'https://www.ijoy.com.tw/images/LSI-2024.jpg', url: 'https://www.ijoy.com.tw/P-LSI.htm', desc: '蜂皇乳+膠原蛋白+大豆異黃酮+血紅素鐵', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+
+                        { cat: '男性活力', name: '利普特', spec: '60粒', veg: '', img: 'https://www.ijoy.com.tw/images/CPT-2024.jpg', url: 'https://www.ijoy.com.tw/P-CPT.htm', desc: '攝護腺保養配方，守護熟齡男性', listPrice: 2280, sellPrice: 1800, staffPrice: 1140 },
+                        { cat: '男性活力', name: '南瓜子複方', spec: '60粒', veg: '', img: 'https://www.ijoy.com.tw/images/LSC-2024.jpg', url: 'https://www.ijoy.com.tw/P-LSC.htm', desc: '南瓜籽+茯苓+蕁麻+茄紅素，順暢如廁', listPrice: 1980, sellPrice: 1200, staffPrice: 990 },
+                        { cat: '男性活力', name: '德保肝', spec: '60粒', veg: '', img: '', url: '', desc: '肝臟保養，調節生理機能', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '男性活力', name: '頂級蜂皇乳(大)', spec: '370粒', veg: '', img: 'https://www.ijoy.com.tw/images/ARJ-370-2024.jpg', url: 'https://www.ijoy.com.tw/P-ARJ.htm', desc: '紐西蘭100%純淨，活性 10-HDA 2%+', listPrice: 6880, sellPrice: 6000, staffPrice: 3440 },
+
+                        { cat: '腸胃代謝', name: '易善纖AKK', spec: '60粒', veg: '全素', img: 'https://www.ijoy.com.tw/images/AKK-2025.jpg', url: 'https://www.ijoy.com.tw/P-AKK.html', desc: 'AKK瘦瘦菌，促進代謝、調整體質', listPrice: 2680, sellPrice: 2000, staffPrice: 1340 },
+                        { cat: '腸胃代謝', name: '益生菌+益生元', spec: '30包', veg: '奶素', img: 'https://www.ijoy.com.tw/images/BPP-2024-NEW.jpg', url: 'https://www.ijoy.com.tw/P-BPP.htm', desc: '8株益生菌+專利益生元+後生元', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '腸胃代謝', name: '暢纖酵素錠', spec: '100錠', veg: '奶素', img: 'https://www.ijoy.com.tw/images/ILT-2024.jpg', url: 'https://www.ijoy.com.tw/P-ILT.htm', desc: '蔬果多酚+海水礦物，排便超有感', listPrice: 1980, sellPrice: 1200, staffPrice: 990 },
+                        { cat: '腸胃代謝', name: '速唐健', spec: '60粒', veg: '', img: 'https://www.ijoy.com.tw/images/CSL-2024.jpg', url: 'https://www.ijoy.com.tw/P-CSL.htm', desc: '植物胜肽配方，調節生理機能', listPrice: 3280, sellPrice: 2400, staffPrice: 1640 },
+
+                        { cat: '護眼腦力', name: '優視明', spec: '60粒', veg: '', img: 'https://www.ijoy.com.tw/images/EYE-2024.jpg', url: 'https://www.ijoy.com.tw/P-EYE.htm', desc: '葉黃素複方，守護明亮視野', listPrice: 2280, sellPrice: 1800, staffPrice: 1140 },
+                        { cat: '護眼腦力', name: '思康PS', spec: '60粒', veg: '全素', img: 'https://www.ijoy.com.tw/images/BPS-2024.jpg', url: 'https://www.ijoy.com.tw/P-BPS.htm', desc: '磷脂絲胺酸PS+DHA藻油，思緒清晰', listPrice: 2280, sellPrice: 1680, staffPrice: 1140 },
+                        { cat: '護眼腦力', name: '德國高濃度魚油', spec: '60粒', veg: '', img: 'https://www.ijoy.com.tw/images/KDF-2024.jpg', url: 'https://www.ijoy.com.tw/P-KDF.htm', desc: '97%高濃度Omega-3，循環與腦力', listPrice: 2280, sellPrice: 1500, staffPrice: 1140 },
+                        { cat: '護眼腦力', name: '易眠康', spec: '60粒', veg: '', img: 'https://www.ijoy.com.tw/images/SEZ-2024.jpg', url: 'https://www.ijoy.com.tw/P-SEZ.html', desc: '助眠舒壓，提升睡眠品質', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '護眼腦力', name: '藻紅素', spec: '60粒', veg: '', img: 'https://www.ijoy.com.tw/images/EAS-2024.jpg', url: 'https://www.ijoy.com.tw/P-EAS.htm', desc: '德國頂級藻紅素+亞麻仁油，守護明亮與青春', listPrice: 2280, sellPrice: 1800, staffPrice: 1140 },
+
+                        { cat: '免疫體質', name: '日本褐藻醣膠', spec: '60粒', veg: '', img: 'https://www.ijoy.com.tw/images/BFJ-2025.jpg', url: 'https://www.ijoy.com.tw/P-BFN.htm', desc: '小分子褐藻醣膠，調節生理與增強體力', listPrice: 3280, sellPrice: 2400, staffPrice: 1640 },
+                        { cat: '免疫體質', name: '蜂膠精華滴液', spec: '30ml', veg: '', img: 'https://www.ijoy.com.tw/images/VPL-2024.jpg', url: 'https://www.ijoy.com.tw/P-VPL.htm', desc: '高濃度蜂膠，天然防護、調節體質', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '免疫體質', name: '沙棘籽油膠囊', spec: '60粒', veg: '', img: 'https://www.ijoy.com.tw/images/BSC-NEW-2024.jpg', url: 'https://www.ijoy.com.tw/P-BSC.html', desc: '俄羅斯頂級沙棘，Omega-7 高含量', listPrice: 2980, sellPrice: 2200, staffPrice: 1490 },
+
+                        { cat: '外用日常', name: '沙棘護理凝膠', spec: '75ml', veg: '', img: 'https://www.ijoy.com.tw/images/BSG75+25-2024.jpg', url: 'https://www.ijoy.com.tw/P-BSG.html', desc: '皮膚修護保養，舒緩不適', listPrice: 980, sellPrice: 700, staffPrice: 490 },
+                        { cat: '外用日常', name: '卡姆果C', spec: '60粒', veg: '全素', img: 'https://www.ijoy.com.tw/images/BKC-2024.jpg', url: 'https://www.ijoy.com.tw/P-BKC.htm', desc: '天然維生素C，抗氧化與修護', listPrice: 1280, sellPrice: 1000, staffPrice: 640 },
+                        { cat: '外用日常', name: '天然維生素B群', spec: '60粒', veg: '全素', img: 'https://www.ijoy.com.tw/images/CNB-2024.jpg', url: 'https://www.ijoy.com.tw/P-CNB.html', desc: '維持整日活力補給', listPrice: 1280, sellPrice: 900, staffPrice: 640 }
+                    ]
+                }
+            },
+            computed: {
+                filteredProducts() {
+                    let list = this.products;
+                    if (this.currentCategory !== '全部產品') list = list.filter(p => p.cat === this.currentCategory);
+                    if (this.searchQuery) {
+                        const q = this.searchQuery.toLowerCase();
+                        list = list.filter(p => p.name.includes(q) || p.desc.includes(q));
+                    }
+                    return list;
+                }
+            },
+            methods: {
+                checkPassword() {
+                    if (this.passwordInput === this.correctPassword) {
+                        this.isAuthenticated = true;
+                        localStorage.setItem('isLogged', 'true');
+                    } else {
+                        this.loginError = true;
+                    }
+                },
+                openDetail(item) { this.selectedItem = item; },
+                copyInfo(item) {
+                    const text = `【${item.name}】\n規格：${item.spec}\n特色：${item.desc}\n末端優惠價：$${item.sellPrice}` + (item.url ? `\n產品詳情：${item.url}` : '') + `\n更多健康資訊請洽詢專員。`;
+                    navigator.clipboard.writeText(text);
+                    this.showToast = true;
+                    setTimeout(() => this.showToast = false, 2500);
+                },
+                logout() { this.isAuthenticated = false; localStorage.removeItem('isLogged'); }
+            },
+            mounted() { if (localStorage.getItem('isLogged') === 'true') this.isAuthenticated = true; }
+        }).mount('#app')
+    </script>
+</body>
+</html>
